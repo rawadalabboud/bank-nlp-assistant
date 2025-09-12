@@ -1,23 +1,11 @@
-# 💳 Bank NLP Assistant
+# Bank NLP Assistant
 
-A **Customer Support NLP Assistant** for banking use cases.  
-It combines **intent classification** (using machine learning & transformers) with an API ready for deployment.  
-Future steps will extend it with **RAG** (Retrieval-Augmented Generation).
-
----
-
-## 🚀 Project Overview
-
-This project builds an NLP pipeline for banking customer support:
-1. **Data**: Banking77 dataset (10k queries, 77 intents).
-2. **Baseline Model**: TF-IDF + Logistic Regression (sklearn).
-3. **Transformer Model**: Fine-tuned DistilBERT with Hugging Face.
-4. **API**: FastAPI endpoint to classify customer queries in real time.
+Customer Support NLP Assistant using intent classification, RAG, and LLMs.  
+Built with **Hugging Face Transformers**, **Scikit-learn**, and **FastAPI** for deployment.
 
 ---
 
-## 📂 Repository Structure
-
+## 📂 Project Structure
 ```
 bank-nlp-assistant/
 │
@@ -46,63 +34,36 @@ bank-nlp-assistant/
 
 ---
 
-## 📊 Results
+## 🚀 Current Progress
 
-### Baseline (sklearn)
-- Accuracy: ~70%
-- Macro-F1: ~0.68
-- Clear confusion between similar intents (e.g. *“card not working”* vs *“card acceptance”*).
+### 1. Baseline (Notebook 01)
+- Model: **TF-IDF + Logistic Regression**
+- Accuracy: ~0.85
+- Macro-F1: ~0.85
 
-### Transformer (DistilBERT)
-- Accuracy: **82%**
-- Macro-F1: **0.80**
-- Handles subtle differences much better.
-- Visualizations:
-  - Confusion matrix (top 20 intents).
-  - Misclassification analysis.
-  - Confidence distribution.
+This baseline provides a strong starting point using classic ML methods.
 
----
+### 2. Transformer Fine-Tuning (Notebook 02)
+- Model: **DistilBERT fine-tuned on Banking77**
+- Accuracy: ~0.90
+- Macro-F1: ~0.90
 
-## 🔧 Running Locally
-
-### 1. Install dependencies
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-### 2. Run notebooks
-Open Jupyter or VSCode to explore:
-- `01_baseline.ipynb`
-- `02_transformer_baseline.ipynb`
-
-### 3. Start API
-```bash
-uvicorn api.main:app --reload --port 8000
-```
-
-### 4. Test endpoints
-```bash
-# health check
-curl http://127.0.0.1:8000/health
-
-# classify a query
-curl -X POST http://127.0.0.1:8000/classify \
-  -H "Content-Type: application/json" \
-  -d '{"text":"I lost my bank card yesterday, what should I do?"}'
-```
+DistilBERT outperforms the baseline, confirming that contextual embeddings capture user intent better than bag-of-words.
 
 ---
 
-## 🔮 Next Steps (planned)
-- [ ] Add **RAG module** (FAQ search).
-- [ ] Confidence-based fallback (classifier + RAG).
-- [ ] Dockerize API for easy deployment.
-- [ ] Add monitoring + evaluation scripts.
+## ✅ Next Steps
+- Add **error analysis** with confusion matrices for transformers.
+- Experiment with **hyperparameters and larger models**.
+- Implement **RAG (Retrieval-Augmented Generation)** in Notebook 03.
+- Deploy the transformer model in the **FastAPI API**.
 
 ---
 
-## 📜 License
-MIT License.
+## 🛠️ Tech Stack
+- **Python** (3.9+)
+- **Transformers (Hugging Face)**
+- **Scikit-learn**
+- **Datasets (Hugging Face)**
+- **PyTorch**
+- **FastAPI + Uvicorn**
