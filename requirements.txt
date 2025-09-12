@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pydantic
+pandas
+numpy
+scikit-learn
+joblib
+langchain
+faiss-cpu
+sentence-transformers
+python-dotenv
+loguru
+httpx
