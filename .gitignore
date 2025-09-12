@@ -29,10 +29,15 @@ models/rag/*
 data/
 
 # big model binaries
-models/**/*.bin
 models/**/*.pt
 models/**/*.pth
 
 # cache
 __pycache__/
 .ipynb_checkpoints/
+
+# model weights & checkpoints
+models/**/*.bin
+models/**/*.safetensors
+models/intent/transformer/checkpoint-*/
+models/intent/sklearn/
