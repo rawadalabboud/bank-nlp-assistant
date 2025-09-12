@@ -11,3 +11,8 @@ sentence-transformers
 python-dotenv
 loguru
 httpx
+datasets
+transformers
+accelerate
+evaluate
+matplotlib

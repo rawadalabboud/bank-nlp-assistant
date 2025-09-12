@@ -21,3 +21,18 @@ build/
 .vscode/
 # Project artifacts
 models/rag/*
+
+# virtual env
+.venv/
+
+# raw data
+data/
+
+# big model binaries
+models/**/*.bin
+models/**/*.pt
+models/**/*.pth
+
+# cache
+__pycache__/
+.ipynb_checkpoints/
