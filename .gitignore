@@ -41,3 +41,9 @@ models/**/*.bin
 models/**/*.safetensors
 models/intent/transformer/checkpoint-*/
 models/intent/sklearn/
+
+# Ignore large model weights
+*.bin
+*.safetensors
+*.pt
+models/intent/transformer_ft/training_args.bin

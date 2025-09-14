@@ -31,7 +31,6 @@ def synthesize_short_answer(query: str, stitched_list: list) -> str:
     if "atm" in q and ("swallow" in q or "retain" in q or "kept" in q or "confiscat" in q):
         return ("If an ATM kept your card: note the ATM location/time, contact the ATM owner and La Banque Postale support, "
                 "place the card in opposition if you can’t recover it quickly, and request a replacement card.")
-    # default: no synthesis
     return ""
 
 
@@ -54,15 +53,14 @@ RERANK_MODEL_NAME = os.getenv("RERANK_MODEL_NAME", "cross-encoder/ms-marco-MiniL
 # Guardrail threshold on *probability* after sigmoid (0..1). Tuned for your data.
 RETRIEVE_THRESHOLD = float(os.getenv("RETRIEVE_THRESHOLD", "0.2"))
 
-# How many to retrieve/rerank by default inside helpers (API can override)
-DEFAULT_K_RETR = int(os.getenv("RAG_K_RETR", "30"))
-DEFAULT_K_FINAL = int(os.getenv("RAG_K_FINAL", "5"))
+# Accept either RERANK_* (what the UI sets) or legacy RAG_* env names
+DEFAULT_K_RETR  = int(os.getenv("RERANK_K_RETR",  os.getenv("RAG_K_RETR",  "30")))
+DEFAULT_K_FINAL = int(os.getenv("RERANK_K_FINAL", os.getenv("RAG_K_FINAL", "5")))
 
-
-# --- Load index, metadata, models (singleton-style) --------------------------------
+# --- Load index, metadata, models ---------------------------------------------------
 INDEX = faiss.read_index(str(INDEX_FP))
-RETR  = SentenceTransformer(EMB_MODEL_NAME)     # dense embedder for retrieval
-RERANK = CrossEncoder(RERANK_MODEL_NAME)        # cross-encoder for reranking
+RETR  = SentenceTransformer(EMB_MODEL_NAME)     # dense embedder
+RERANK = CrossEncoder(RERANK_MODEL_NAME)        # cross-encoder
 
 META: List[Dict[str, Any]] = [
     json.loads(line) for line in META_FP.read_text(encoding="utf-8").splitlines() if line.strip()
@@ -88,10 +86,6 @@ def rewrite_query(q: str) -> str:
 
 # --- Core retrieval (dense + FAISS) ------------------------------------------------
 def retrieve(query: str, k: int = 5) -> List[Dict[str, Any]]:
-    """
-    Dense retrieval over FAISS (cosine via inner product on normalized vectors),
-    with a simple keyword-boosted query rewrite for banking queries.
-    """
     q = rewrite_query(query)
     qvec = RETR.encode([q], normalize_embeddings=True)
     D, I = INDEX.search(np.asarray(qvec, dtype="float32"), k)
@@ -124,37 +118,31 @@ def dedup_passages(passages: List[Dict[str, Any]], min_words: int = 3) -> List[D
         out.append(p)
     return out
 
-# Strict on-topic heuristics (ATM/swallowed)
 ATM_RULE  = re.compile(r"\batm\b|\bgab\b|\bcash\s?machine\b", re.I)
 SWAL_RULE = re.compile(r"\bswallow(?:ed)?\b|\bretained?\b|\bkept\b|\bconfiscated\b", re.I)
 
 def is_on_topic(query: str, text: str) -> bool:
     q = query.lower()
     t = text.lower()
-
-    # If query mentions ATM/swallowed, require ATM or swallowed in the passage too
     if ATM_RULE.search(q) or SWAL_RULE.search(q):
         return bool(ATM_RULE.search(t) or SWAL_RULE.search(t))
-
-    # Otherwise use specific banking keys (avoid generic "card")
     SPEC_KEYS = ["beneficiary", "iban", "password", "phishing", "fraud", "transfer"]
     return any(k in q and k in t for k in SPEC_KEYS)
 
 
 # --- Reranked retrieval (CrossEncoder with sigmoid normalization) -------------------
 def retrieve_rerank(query: str, k_retr: int = DEFAULT_K_RETR, k_final: int = DEFAULT_K_FINAL) -> List[Dict[str, Any]]:
-    """
-    1) Dense retrieve top-k_retr
-    2) Cross-encoder rerank (logits → sigmoid probabilities)
-    3) Return top-k_final with 'rerank_score' in [0,1] and 'rerank_score_raw' (logit)
-    """
+    # allow env override here too
+    k_retr  = int(os.getenv("RERANK_K_RETR",  k_retr))
+    k_final = int(os.getenv("RERANK_K_FINAL", k_final))
+
     cand = retrieve(query, k=k_retr)
     if not cand:
         return []
 
     pairs = [(query, c["text"]) for c in cand]
-    raw = RERANK.predict(pairs)                  # uncalibrated logits (can be negative)
-    probs = 1.0 / (1.0 + np.exp(-raw))           # sigmoid → probabilities in [0, 1]
+    raw = RERANK.predict(pairs)                  # logits
+    probs = 1.0 / (1.0 + np.exp(-raw))          # sigmoid -> [0,1]
 
     order = np.argsort(probs)[::-1][:k_final]
     out: List[Dict[str, Any]] = []
@@ -168,7 +156,6 @@ def retrieve_rerank(query: str, k_retr: int = DEFAULT_K_RETR, k_final: int = DEF
 
 # --- Public answer helpers ---------------------------------------------------------
 def answer_with_rag(query: str, k: int = DEFAULT_K_FINAL) -> Dict[str, Any]:
-    """Baseline: dense retrieval only, no reranking."""
     hits = retrieve(query, k=k)
     stitched = "\n\n".join([f"- {h['text']}" for h in hits[:3]])
     srcs = [{"file": h["file"], "heading": h["heading"], "source": h["source"]} for h in hits[:3]]
@@ -181,12 +168,12 @@ def answer_with_rag(query: str, k: int = DEFAULT_K_FINAL) -> Dict[str, Any]:
 
 
 def answer_with_rag_rerank(query: str, k_retr: int = DEFAULT_K_RETR, k_final: int = DEFAULT_K_FINAL) -> Dict[str, Any]:
-    """
-    Default: dense retrieval → cross-encoder rerank (sigmoid) → safety rules boost
-    → dedup → guardrail → strict on-topic stitch with backfill.
-    """
-    # Rerank (get a bit extra for better stitching)
-    top = retrieve_rerank(query, k_retr=k_retr, k_final=max(k_final * 2, 10))
+    # read UI overrides (so sliders always win)
+    k_retr  = int(os.getenv("RERANK_K_RETR",  k_retr))
+    k_final = int(os.getenv("RERANK_K_FINAL", k_final))
+
+    # rerank exactly k_final (no hidden 5-cap)
+    top = retrieve_rerank(query, k_retr=k_retr, k_final=max(k_final, 1))
     if not top:
         return {
             "query": query,
@@ -195,16 +182,15 @@ def answer_with_rag_rerank(query: str, k_retr: int = DEFAULT_K_RETR, k_final: in
             "matches": [],
         }
 
-    # Safety rule: if query mentions ATM + swallowed/retained, boost the specific FAQ if present
+    # boost specific known FAQ if applicable
     if ATM_RULE.search(query) and SWAL_RULE.search(query):
         for t in top:
             if t.get("heading") and "card swallowed" in t["heading"].lower():
                 t["rerank_score"] = max(t.get("rerank_score", 0.0), 0.95)
                 break
-        # Re-sort after boosting
         top = sorted(top, key=lambda x: x.get("rerank_score", 0.0), reverse=True)
 
-    # Dedup then apply guardrail on normalized probability
+    # dedup and guardrail
     top = dedup_passages(top)
     if float(top[0].get("rerank_score", 0.0)) < RETRIEVE_THRESHOLD:
         return {
@@ -214,14 +200,9 @@ def answer_with_rag_rerank(query: str, k_retr: int = DEFAULT_K_RETR, k_final: in
             "matches": top[:k_final],
         }
 
-    # Strict on-topic stitching ONLY (no generic backfill)
+    # strict on-topic stitch (up to 3 bullets just for readability)
     on_topic = [t for t in top if is_on_topic(query, t["text"])]
-
-    if on_topic:
-        stitched_list = on_topic[:3]  # show only ATM-relevant bullets
-    else:
-        # if nothing passes the filter (rare), fall back to the top results
-        stitched_list = top[:3]
+    stitched_list = (on_topic or top)[:3]
 
     matches = top[:k_final]
 
@@ -236,3 +217,10 @@ def answer_with_rag_rerank(query: str, k_retr: int = DEFAULT_K_RETR, k_final: in
         "matches": matches,
     }
 
+def debug_rerank(query: str, k_retr: int = 30, k_final: int = 5):
+    ranked = retrieve_rerank(query, k_retr=k_retr, k_final=k_final)
+    return {
+        "top_scores": [r.get("rerank_score", 0.0) for r in ranked],
+        "top_headings": [r.get("heading", "") for r in ranked],
+        "count": len(ranked),
+    }
