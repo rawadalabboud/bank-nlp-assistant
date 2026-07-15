@@ -1,87 +1,91 @@
-# 💳 Bank NLP Assistant
+# Bank NLP Assistant
 
-Customer Support NLP Assistant using **intent classification**, **retrieval-augmented generation (RAG)**, and **cross-encoder reranking**.  
-Built with **Hugging Face Transformers**, **Scikit-learn**, **FastAPI**, and a **Streamlit demo UI**.  
+Customer-support NLP stack: **intent classification** (Banking77), **RAG** over a Markdown FAQ, **cross-encoder reranking**, **FastAPI** backend, and **Streamlit** demo UI.
 
----
+> Personal RAG + NLP project aligned with my production GenAI work. Portfolio: [rawad-portfolio](https://github.com/rawadalabboud/rawad-portfolio).
 
-## 📂 Project Structure
+## Features
+
+| Layer | Implementation | Notes |
+|-------|----------------|-------|
+| Intent (baseline) | TF-IDF + Logistic Regression | ~85% accuracy / macro-F1 |
+| Intent (transformer) | DistilBERT fine-tuned | ~90% accuracy / macro-F1 |
+| Retrieval | SentenceTransformers + FAISS | MiniLM embeddings |
+| Reranking | Cross-encoder (`ms-marco-MiniLM-L-6-v2`) | Precision-focused FAQ answers |
+| API | FastAPI | `/health`, `/classify`, `/answer`, `/answer_debug` |
+| UI | Streamlit | Intent tab + FAQ assistant + debug view |
+
+## Project structure
+
 ```
 bank-nlp-assistant/
-│
-├── api/                     # FastAPI service (API endpoints)
-│   └── main.py              # /health, /classify, /answer endpoints
-│
-├── notebooks/               # Jupyter notebooks
-│   ├── 01_baseline.ipynb             # Baseline: sklearn classifier
-│   ├── 02_transformer_baseline.ipynb # DistilBERT fine-tuning
-│   └── 03_rag.ipynb                  # RAG + rerank experiments
-│
-├── src/                     # Source code
-│   ├── data_banking77.py           # Dataset preparation (Banking77 → CSVs)
-│   ├── train_intent_sklearn.py     # Train sklearn baseline
-│   ├── infer_intent.py             # Inference with sklearn baseline
-│   ├── infer_intent_transformer.py # Inference with DistilBERT
-│   ├── rag_build.py                # Build FAISS index + metadata
-│   ├── rag_eval.py                 # Evaluate RAG retrieval + rerank
-│   └── rag_answer.py               # RAG + rerank pipeline
-│
-├── models/                  # Saved models + FAISS artifacts
-│   ├── intent/transformer/         # DistilBERT configs + tokenizer
-│   └── rag/                        # FAISS index + metadata
-│
-├── faq/                     # Markdown FAQ knowledge base
-│
-├── app.py                   # Streamlit demo app
-├── data/processed/          # Train/val/test splits
-├── requirements.txt         # Project dependencies
-├── LICENSE
-└── README.md
+├── api/main.py              # FastAPI service
+├── app.py                   # Streamlit demo
+├── src/
+│   ├── data_banking77.py
+│   ├── train_intent_sklearn.py
+│   ├── infer_intent.py
+│   ├── infer_intent_transformer.py
+│   ├── rag_build.py
+│   ├── rag_eval.py
+│   └── rag_answer.py
+├── notebooks/               # 01 baseline → 03 RAG experiments
+├── faq/                     # Markdown knowledge base
+├── models/                  # Saved classifiers + FAISS index
+└── requirements.txt
 ```
 
----
+## Quick start
 
-## 🚀 Current Progress
+```bash
+git clone https://github.com/rawadalabboud/bank-nlp-assistant.git
+cd bank-nlp-assistant
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-### 1. Baseline (Notebook 01)
-- **Model**: TF-IDF + Logistic Regression  
-- **Accuracy**: ~0.85 | **Macro-F1**: ~0.85  
-➡️ Provides a strong classical ML baseline.  
+### Streamlit UI
 
-### 2. Transformer Fine-Tuning (Notebook 02)
-- **Model**: DistilBERT fine-tuned on Banking77  
-- **Accuracy**: ~0.90 | **Macro-F1**: ~0.90  
-➡️ Contextual embeddings capture user intent better than bag-of-words.  
+```bash
+streamlit run app.py
+```
 
-### 3. RAG + Rerank (Notebook 03)
-- **Retriever**: SentenceTransformers MiniLM + FAISS  
-- **Reranker**: Cross-encoder (`ms-marco-MiniLM-L-6-v2`)  
-- **Guardrails**: Deduplication, thresholding, on-topic filtering  
-➡️ Improves precision and provides explainable FAQ answers.  
+### FastAPI
 
-### 4. API + Streamlit UI
-- **FastAPI** backend with `/classify`, `/answer`, `/answer_debug`  
-- **Streamlit** UI with:  
-  - Intent classification tab (Top-K)  
-  - FAQ Assistant with reranked snippets  
-  - Debugging view of scores and sources  
+```bash
+uvicorn api.main:app --reload --port 8000
+```
 
----
+- Docs: [http://localhost:8000/docs](http://localhost:8000/docs)  
+- Classify: `POST /classify` with `{"text": "...", "k": 5}`  
+- RAG answer: `POST /answer` with `{"text": "..."}`  
 
-## ✅ Next Steps
-- Improve UI styling (dark/light themes, better highlighting).  
-- Add **evaluation metrics** for RAG (Hit@k, MRR).  
-- Experiment with **larger cross-encoders** and **LLM generation**.  
-- Deploy with **Docker + CI/CD**.  
+## Notebooks
 
----
+| Notebook | Content |
+|----------|---------|
+| `01_baseline.ipynb` | sklearn TF-IDF + logistic regression |
+| `02_transformer_baseline.ipynb` | DistilBERT fine-tuning |
+| `03_rag.ipynb` | FAISS retrieval + rerank + guardrails |
 
-## 🛠️ Tech Stack
-- **Python** (3.9+)  
-- **Transformers (Hugging Face)**  
-- **Scikit-learn**  
-- **Datasets (Hugging Face)**  
-- **PyTorch**  
-- **FAISS**  
-- **FastAPI + Uvicorn**  
-- **Streamlit**  
+## Tech stack
+
+Python 3.9+ · Hugging Face Transformers · scikit-learn · PyTorch · FAISS · FastAPI · Streamlit
+
+## Roadmap
+
+- Docker + CI/CD deployment  
+- RAG metrics (Hit@k, MRR) in eval harness  
+- Optional LLM generation layer on top of reranked context  
+
+## Author
+
+**Rawad Al Abboud** — ML/AI Engineer · Paris  
+
+- Portfolio: [github.com/rawadalabboud/rawad-portfolio](https://github.com/rawadalabboud/rawad-portfolio)  
+- GitHub: [@rawadalabboud](https://github.com/rawadalabboud)  
+- LinkedIn: [rawad-al-abboud](https://www.linkedin.com/in/rawad-al-abboud/)
+
+## License
+
+See [LICENSE](LICENSE).
